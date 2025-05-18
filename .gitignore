@@ -3,3 +3,4 @@ data
 *.warc
 .idea
 *.db
+*.pkl
