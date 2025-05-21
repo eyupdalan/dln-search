@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import re
 import html.entities  # html modülünü doğru şekilde import ediyoruz
+from text_preprocessing import preprocess_text
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -52,19 +53,19 @@ def safe_encode_decode(text):
         print(f"Metin dönüştürme hatası: {e}")
         return ""
 
-def preprocess_text(text):
-    tokens = text.lower().split()
+# def preprocess_text(text):
+#     tokens = text.lower().split()
 
-    # Noktalama ve stopword temizliği
-    filtered_tokens = [
-        t for t in tokens 
-        if (t not in stop_words and 
-            t not in punctuations and 
-            t.strip().isalpha() and  # strip() ile boşlukları temizle
-            len(t.strip()) > 1)  # Tek karakterli kelimeleri filtrele
-    ]
+#     # Noktalama ve stopword temizliği
+#     filtered_tokens = [
+#         t for t in tokens 
+#         if (t not in stop_words and 
+#             t not in punctuations and 
+#             t.strip().isalpha() and  # strip() ile boşlukları temizle
+#             len(t.strip()) > 1)  # Tek karakterli kelimeleri filtrele
+#     ]
     
-    return filtered_tokens
+#     return filtered_tokens
 
 def process_in_chunks(batch_size=1000):
     # PostgreSQL bağlantı parametreleri

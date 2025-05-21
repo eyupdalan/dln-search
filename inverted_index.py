@@ -2,6 +2,8 @@ from collections import defaultdict, Counter
 import psycopg2
 from tqdm import tqdm
 import pickle
+import io
+import csv
 
 # PostgreSQL bağlantı parametreleri
 db_params = {
@@ -63,52 +65,70 @@ def save_inverted_index(inverted_index):
     conn = psycopg2.connect(**db_params)
     cursor = conn.cursor()
     try:
+        # Önce tabloyu temizleyelim
+        cursor.execute("TRUNCATE TABLE inverted_index")
+        
+        # Veriyi CSV formatında bir StringIO nesnesine yazalım
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Veriyi hazırla
         total_items = sum(len(postings) for postings in inverted_index.values())
-        with tqdm(total=total_items, desc="Saving Inverted Index") as pbar:
+        with tqdm(total=total_items, desc="Preparing Inverted Index Data") as pbar:
             for term, postings in inverted_index.items():
                 for doc_id, freq in postings:
-                    cursor.execute("""
-                        INSERT INTO inverted_index (term, doc_id, freq)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (term, doc_id) DO UPDATE
-                        SET freq = EXCLUDED.freq;
-                    """, (term, doc_id, freq))
-                    
+                    writer.writerow([term, doc_id, freq])
                     pbar.update(1)
-                    
-                    if pbar.n % 1000 == 0:
-                        conn.commit()
-            
-            # Son kalan kayıtları da commit et
-            conn.commit()
+        
+        # StringIO'yu başa sar
+        output.seek(0)
+        
+        # COPY komutu ile veriyi yükle
+        cursor.copy_from(
+            output,
+            'inverted_index',
+            sep=',',
+            columns=('term', 'doc_id', 'freq')
+        )
+        conn.commit()
+        
     except Exception as e:
         print(f"Hata oluştu: {e}")
         conn.rollback()
     finally:
         cursor.close()
         conn.close()
-    
+
 def save_doc_lengths(doc_lengths):
     conn = psycopg2.connect(**db_params)
     cursor = conn.cursor()
     try:
-        item_count = len(doc_lengths.items())
-        with tqdm(total=item_count, desc="Saving Document Lengths") as pbar:
-            for doc_id, length_of_doc in doc_lengths.items():
-                cursor.execute("""
-                    INSERT INTO doc_lengths (doc_id, length)
-                    VALUES (%s, %s)
-                    ON CONFLICT (doc_id) DO UPDATE
-                    SET length = EXCLUDED.length;
-                """, (doc_id, length_of_doc))
-                
+        # Önce tabloyu temizleyelim
+        cursor.execute("TRUNCATE TABLE doc_lengths")
+        
+        # Veriyi CSV formatında bir StringIO nesnesine yazalım
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Veriyi hazırla
+        total_items = len(doc_lengths)
+        with tqdm(total=total_items, desc="Preparing Document Lengths Data") as pbar:
+            for doc_id, length in doc_lengths.items():
+                writer.writerow([doc_id, length])
                 pbar.update(1)
-                
-                if pbar.n % 1000 == 0:
-                    conn.commit()
-            
-            # Son kalan kayıtları da commit et
-            conn.commit()
+        
+        # StringIO'yu başa sar
+        output.seek(0)
+        
+        # COPY komutu ile veriyi yükle
+        cursor.copy_from(
+            output,
+            'doc_lengths',
+            sep=',',
+            columns=('doc_id', 'length')
+        )
+        conn.commit()
+        
     except Exception as e:
         print(f"Hata oluştu: {e}")
         conn.rollback()
@@ -126,9 +146,11 @@ print("doc_lengths length: ", len(doc_lengths))
 
 with open("inverted_index.pkl", "wb") as f:
     pickle.dump(inverted_index, f)
+    print("inverted_index.pkl saved")
 
 with open("doc_lengths.pkl", "wb") as f:
     pickle.dump(doc_lengths, f)
+    print("doc_lengths.pkl saved")
 
-#save_doc_lengths(doc_lengths)
-#save_inverted_index(inverted_index)
+save_doc_lengths(doc_lengths)
+save_inverted_index(inverted_index)
